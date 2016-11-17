@@ -5,7 +5,6 @@ var CognitoHelper = require('./cognito-helper');
 var cognito = new CognitoHelper();
 
 var config = require('./server-config');
-console.log('lambda loaded config', config);
 
 /*
 |--------------------------------------------------------------------------
@@ -23,14 +22,12 @@ function createJWT(userId, expiresIn) {
   else {
     exp = moment().add(14, 'days');
   }
-  console.log('createJWT exp', exp.format());
 
   var payload = {
       sub: userId,
       iat: moment().unix(),
       exp: exp.unix(),
   };
-  console.log('createJWT payload', payload);
 
   return jwt.encode(payload, config.TOKEN_SECRET);
 }
@@ -51,9 +48,7 @@ function checkJWT(authorization, dontFail) {
   }
   var token = authorization.split(' ')[1];
   var payload = jwt.decode(token, config.TOKEN_SECRET);
-  console.log('checkJWT', payload);
   var now = moment().unix();
-  console.log('checkJWT', 'exp=' + payload.exp + ' now=' + now);
   if (payload.exp <= now - 60) {
     if(dontFail) {
       return null;
@@ -71,7 +66,6 @@ function checkJWT(authorization, dontFail) {
 |--------------------------------------------------------------------------
 */
 exports.handler  = function(event, context) {
-  console.log('event', event);
 
   // /auth/{operation}
   var operation = event.operation;
@@ -110,8 +104,6 @@ exports.handler  = function(event, context) {
   };
   
   var tokenCallback = function(err, data) {
-//    console.log('tokenCallback err', err);
-//    console.log('tokenCallback data', data);
     if(err) {
       context.fail(makeError(err));
     }
@@ -154,8 +146,6 @@ exports.handler  = function(event, context) {
   else {
     var provider = operation;
     var userId = checkJWT(event.authorization, true);
-    console.log('provider', provider);
-    console.log('userId', userId);
     cognito.loginFederated(provider, 
         payload.code, payload.clientId, payload.redirectUri, userId, 
         tokenCallback);
