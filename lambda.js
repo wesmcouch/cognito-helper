@@ -1,3 +1,8 @@
+var ApiBuilder = require('claudia-api-builder'),
+  api = new ApiBuilder();
+
+module.exports = api;
+
 var jwt = require('jwt-simple');
 var moment = require('moment');
 
@@ -30,7 +35,7 @@ function createJWT(userId, expiresIn) {
   };
 
   return jwt.encode(payload, config.TOKEN_SECRET);
-}
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -58,96 +63,93 @@ function checkJWT(authorization, dontFail) {
     }
   }
   return payload.sub;
-}
+};
+
+function tokenCallback (err, data) {
+  if(err) {
+    context.fail(makeError(err));
+  }
+  else {
+    context.succeed({token: createJWT(data.id)});
+  }
+};
+
+function makeError(err) {
+  var errorCode = 'Bad Request';
+  switch(err.code) {
+    case 404: errorCode = 'Not Found'; break;
+    case 409: errorCode = 'Conflict'; break;
+    case 401: errorCode = 'Unauthorized'; break;
+  }
+  return new Error(errorCode + ': ' + (err.error || err));
+};
+
+function ensureAuthenticated(request, callback) {
+  var t = checkJWT(request.normalizedheaders.token);
+  if(t.message) {
+    context.fail(new Error('Unauthorized: ' + t.message));
+  }
+  else {
+    callback(t);
+  }
+};
+
+function dataCallback(err, data) {
+  if(err) {
+    context.fail(makeError(err));
+  }
+  else {
+    context.succeed(data);
+  }
+};
 
 /*
 |--------------------------------------------------------------------------
 | AWS invokes this method to process requests
 |--------------------------------------------------------------------------
 */
-exports.handler  = function(event, context) {
+api.post('/user', function (request) {
+  cognito.signup(request.body.name, request.body.email, request.body.password, 
+        tokenCallback);
+});
 
-  // /auth/{operation}
-  var operation = event.operation;
-  var payload = event.payload;
-  
-  var ensureAuthenticated = function(callback) {
-    var authorization = event.authorization;
-    delete event.authorization;
-    
-    var t = checkJWT(authorization);
-    if(t.message) {
-      context.fail(new Error('Unauthorized: ' + t.message));
-    }
-    else {
-      callback(t);
-    }
-  };
-  
-  var dataCallback = function(err, data) {
-    if(err) {
-      context.fail(makeError(err));
-    }
-    else {
-      context.succeed(data);
-    }
-  };
-  
-  var makeError = function(err) {
-    var errorCode = 'Bad Request';
-    switch(err.code) {
-    case 404: errorCode = 'Not Found'; break;
-    case 409: errorCode = 'Conflict'; break;
-    case 401: errorCode = 'Unauthorized'; break;
-    }
-    return new Error(errorCode + ': ' + (err.error || err));
-  };
-  
-  var tokenCallback = function(err, data) {
-    if(err) {
-      context.fail(makeError(err));
-    }
-    else {
-      context.succeed({token: createJWT(data.id)});
-    }
-  };
-  
-  if(operation === 'login') {
-    cognito.login(payload.email, payload.password, payload.reset, 
-        tokenCallback);
-  }
-  else if(operation === 'signup') {
-    cognito.signup(payload.name, payload.email, payload.password, 
-        tokenCallback);
-  }
-  else if(operation === 'me') {
-    ensureAuthenticated(function(userId) {
-      cognito.getProfile(userId, dataCallback);
-    });
-  }
-  else if(operation === 'credentials') {
-    ensureAuthenticated(function(userId) {
-      cognito.getCredentials(userId, dataCallback);
-    });
-  }
-  else if(operation === 'forgot') {
-    cognito.forgotPassword(payload.email, dataCallback);
-  }
-  else if(operation === 'update') {
-    ensureAuthenticated(function(userId) {
-      cognito.updatePassword(userId, payload.password, dataCallback);
-    });
-  }
-  else if(operation === 'unlink') {
-    ensureAuthenticated(function(userId) {
-      cognito.unlink(userId, payload.provider, null, dataCallback);
-    });
-  }
-  else {
+api.post('/login', function (request) {
+  if (request.body.provider == null) {
+  cognito.login(request.body.email, request.body.password, request.body.refreshtoken, 
+      tokenCallback);
+  } else {
     var provider = operation;
-    var userId = checkJWT(event.authorization, true);
-    cognito.loginFederated(provider, 
-        payload.code, payload.clientId, payload.redirectUri, userId, 
+    var userId = checkJWT(request.normalizedheaders.token, true);
+    cognito.loginFederated(request.body.provider, 
+        request.body.code, request.body.clientId, request.body.redirectUri, userId, 
         tokenCallback);
   }
-};
+});
+
+api.get('/me', function (request) {
+  ensureAuthenticated(request, function(userId) {
+    cognito.getProfile(userId, dataCallback);
+  });
+});
+
+api.get('/credentials', function (request) {
+  ensureAuthenticated(request, function(userId) {
+    cognito.getCredentials(userId, dataCallback);
+  });
+});
+
+api.post('/forgot', function (request) {
+  cognito.forgotPassword(request.body.email, dataCallback);
+});
+
+api.put('/user', function (request) {
+  ensureAuthenticated(request, function(userId) {
+    cognito.updatePassword(userId, request.body.password, dataCallback);
+  });
+});
+
+api.post('/logout', function (request) {
+  ensureAuthenticated(request, function(userId) {
+    cognito.unlink(userId, request.body.provider, null, dataCallback);
+  });
+});

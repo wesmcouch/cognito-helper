@@ -8,6 +8,7 @@
     "async": "^1.4.2",
     "aws-sdk": "^2.1.28",
     "bcryptjs": "^2.1.0",
+    "claudia-api-builder": "^2.0.2",
     "js-sha256": "^0.3.0",
     "jwt-simple": "^0.3.0",
     "lodash": "^3.10.1",
@@ -18,9 +19,7 @@
     "string-format": "^0.5.0"
   },
   "scripts": {
-    "doc": "jsdoc2md --template readme.hbs cognito-helper.js > README.md",
-    "test": "mocha",
-    "lambda": "sh zip-lambda.sh"
+    "doc": "jsdoc2md --template readme.hbs cognito-helper.js > README.md"
   },
   "keywords": [
     "authentication",
