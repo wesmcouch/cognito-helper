@@ -10,7 +10,7 @@ var format = require('string-format');
 format.extend(String.prototype);
 var request = require('request');
 var logger = require('log4js').getLogger('CognitoHelper');
-var AWS = require('./aws');
+var AWS = require('aws-sdk');
 var configDefault = require('./config');
 
 /**
